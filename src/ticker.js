@@ -2,12 +2,18 @@ const path = require('path');
 const request = require('request');
 const parseJson = require('parse-json');
 const { app, BrowserWindow, TouchBar } = require('electron');
-const { TouchBarLabel } = TouchBar;
+const { TouchBarButton, TouchBarGroup, TouchBarSpacer } = TouchBar;
 
 const buttons = [];
 const apis = {
-  gdax: 'https://api.gdax.com/products/|/ticker',
-  cmc: 'https://api.coinmarketcap.com/v1/ticker/|'
+  gdax: {
+    url: 'https://api.gdax.com/products/|/ticker',
+    parse_price: function(json) { return parseFloat(json.price, 2); }
+  },
+  cmc: {
+      url: 'https://api.coinmarketcap.com/v1/ticker/|',
+      parse_price: function(json) { return parseFloat(json[0].price_usd, 6); }
+  }
 }
 const currencies = [
   {
@@ -15,37 +21,50 @@ const currencies = [
     symbol:    '\u20bf',
     api:       'gdax',
     precision: 2,
-    icon: path.join(__dirname, '/currencies/btc.png')
+    icon: 'btc_icon.png',
+    web_url: 'https://www.coinbase.com/charts'
   },
   {
     productId: 'ETH-USD',
     symbol:    '\u039e',
     api:       'gdax',
-    precision: 2
+    precision: 2,
+    icon: 'eth_icon.png',
+    web_url: 'https://www.coinbase.com/charts'
   },
   {
     productId: 'LTC-USD',
     symbol: 'L',
     api:    'gdax',
-    precision: 2
+    precision: 2,
+    icon: 'ltc_icon.png',
+    web_url: 'https://www.coinbase.com/charts'
   },
   {
     productId: 'ripple',
     symbol:    'R',
     api:       'cmc',
-    precision: 6
+    precision: 6,
+    icon: 'xrp_icon.png',
+    web_url: 'https://coinmarketcap.com/currencies/ripple/'
   }
 ];
 
-currencies.forEach(({ productId, icon }) => {
-  buttons.push(new TouchBarLabel({
-    label:           ''
+currencies.forEach(({ productId, icon, web_url }) => {
+  buttons.push(new TouchBarButton({
+    label:           '',
+    icon: path.join(__dirname, `/currencies/${icon}`),
+    iconPosition:    'left',
+    click: () => {
+      window = new BrowserWindow({ });
+      window.loadURL(web_url);
+    }
   }));
 });
 
 const getLatestTick = (currency, callback) => {
   var api = currency.api;
-  var url = apis[api].replace('|', currency.productId);
+  var url = apis[api].url.replace('|', currency.productId);
   var options = {
     url: url,
     headers: {
@@ -64,22 +83,17 @@ const updateTickers = () => {
         button.label = `${currency.symbol}: error!`;
         return;
       }
-
       const json = parseJson(body);
       var price;
-      if(currency.api === 'gdax') {
-        price = parseFloat(json.price, 2);
-      } else {
-        price = parseFloat(json[0].price_usd, 6);
-      }
+      price = apis[currency.api].parse_price(json);
       if (currency.price < price) {
-        button.textColor = '#98FB98';
+        button.backgroundColor = '#98FB98';
       } else if (currency.price > price) {
-        button.textColor = '#FB9898';
+        button.backgroundColor = '#FB9898';
       } else {
-        button.textColor = '#FFFFFF';
+        button.backgroundColor = '#FFFFFF';
       }
-      button.label = `${currency.symbol} ${price.toFixed(currency.precision)}`;
+      button.label = `${price.toFixed(currency.precision)}`;
       currency.price = price;
     })
   });
